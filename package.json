@@ -2,12 +2,10 @@
   "name": "cordova-plugin-wputils",
   "version": "0.0.1",
   "description": "A plugin that exposes utils to set wallpaper and lockscreen images",
-  "private": true,
   "cordova": {
-    "id": "cordova-plugin-wallpaper-utils",
+    "id": "cordova-plugin-wputils",
     "platforms": [
-      "android",
-      "ios"
+      "android"
     ]
   },
   "repository": {
@@ -15,11 +13,9 @@
     "url": "git+https://github.com/AndreVarandas/cordova-plugin-wallpaper.git"
   },
   "keywords": [
-    "ecosystem:cordova",
-    "cordova-android",
-    "cordova-ios"
+    "cordova-android"
   ],
-  "author": "",
+  "author": "André Varandas - andre.m.varandas@gmail.com",
   "license": "GPL-3.0",
   "bugs": {
     "url": "https://github.com/AndreVarandas/cordova-plugin-wallpaper/issues"
