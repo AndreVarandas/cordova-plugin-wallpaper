@@ -13,13 +13,18 @@ import org.json.JSONException;
 
 import java.io.IOException;
 import java.net.URL;
+import java.util.concurrent.Callable;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
 
 /**
  * This class echoes a string called from JavaScript.
  */
 public class WPUtils extends CordovaPlugin {
 
-    public Context context = null;
+    private Context context = null;
     private static final boolean IS_NOUGAT_OR_GREATER = Build.VERSION.SDK_INT >= 24;
 
     @Override
@@ -28,25 +33,29 @@ public class WPUtils extends CordovaPlugin {
         context = IS_NOUGAT_OR_GREATER ? cordova.getActivity().getWindow().getContext()
                 : cordova.getActivity().getApplicationContext();
 
-
         String url = args.getString(0);
-        Bitmap bmp = this.getBitmapFromUrl(url, callbackContext);
+        Bitmap bmp = null;
+
+        ExecutorService executorService = Executors.newSingleThreadExecutor();
+        Future<Bitmap> future = executorService.submit(new getBitmapFromURLCallable(url, callbackContext));
+
+        try {
+            bmp = future.get();
+        } catch (InterruptedException | ExecutionException e) {
+            e.printStackTrace();
+        }
 
         switch (action) {
             case "setImageAsWallpaper":
-                this.setImageAsWallpaper(bmp, callbackContext);
-
+                cordova.getThreadPool().execute(new setBackgroundImageRunnable(bmp, callbackContext));
                 return true;
 
             case "setImageAsLockScreen":
-                this.setImageAsLockScreen(bmp, callbackContext);
-
+                cordova.getThreadPool().execute(new setLockScreenImageRunnable(bmp, callbackContext));
                 return true;
 
             case "setImageAsWallpaperAndLockScreen":
-                this.setImageAsLockScreen(bmp, callbackContext);
-                this.setImageAsWallpaper(bmp, callbackContext);
-
+                cordova.getThreadPool().execute(new setLockScreenAndWallpaperImageRunnable(bmp, callbackContext));
                 return true;
 
             default:
@@ -56,58 +65,109 @@ public class WPUtils extends CordovaPlugin {
 
     /**
      * Creates a Bitmap from a given url string.
-     *
-     * @param url             - The imageUrl
-     * @param callbackContext - Cordova callback context function.
-     * @return Bitmap for the image url.
      */
-    private Bitmap getBitmapFromUrl(String url, CallbackContext callbackContext) {
-        Bitmap image = null;
-        try {
-            URL imageUrl = new URL(url);
-            image = BitmapFactory.decodeStream(imageUrl.openStream());
-        } catch (IOException e) {
-            callbackContext.error(e.getMessage());
-            e.printStackTrace();
+    private class getBitmapFromURLCallable implements Callable<Bitmap> {
+
+        private String URL;
+        private CallbackContext callbackContext;
+
+        private getBitmapFromURLCallable(String URL, CallbackContext callbackContext) {
+            this.URL = URL;
+            this.callbackContext = callbackContext;
         }
 
-        return image;
+        @Override
+        public Bitmap call() {
+            Bitmap bmp = null;
+            try {
+                URL imageUrl = new URL(this.URL);
+                bmp = BitmapFactory.decodeStream(imageUrl.openStream());
+            } catch (IOException e) {
+                callbackContext.error(e.getMessage());
+                e.printStackTrace();
+            }
+
+            return bmp;
+        }
     }
 
     /**
      * Sets a Bitmap resource as the device wallpaper.
-     *
-     * @param bmp             - The bitmap resource to use as wallpaper.
-     * @param callbackContext - Cordova callback context function.
      */
-    private void setImageAsWallpaper(Bitmap bmp, CallbackContext callbackContext) {
-        WallpaperManager wallpaperManager = WallpaperManager.getInstance(context);
-        try {
-            wallpaperManager.setBitmap(bmp);
-        } catch (IOException e) {
-            callbackContext.error(e.getMessage());
-            e.printStackTrace();
+    private class setBackgroundImageRunnable implements Runnable {
+
+        private Bitmap bmp;
+        private CallbackContext callbackContext;
+
+        private setBackgroundImageRunnable(Bitmap bmp, CallbackContext callbackContext) {
+            this.bmp = bmp;
+            this.callbackContext = callbackContext;
         }
 
-        callbackContext.success();
+        @Override
+        public void run() {
+            WallpaperManager wallpaperManager = WallpaperManager.getInstance(context);
+            try {
+                wallpaperManager.setBitmap(bmp);
+            } catch (IOException e) {
+                callbackContext.error(e.getMessage());
+                e.printStackTrace();
+            }
+
+            callbackContext.success();
+        }
     }
 
     /**
      * Sets a Bitmap resource as the device lock screen wallpaper.
-     *
-     * @param bmp             - The bitmap resource to use as wallpaper
-     * @param callbackContext Cordova callback context function.
      */
-    private void setImageAsLockScreen(Bitmap bmp, CallbackContext callbackContext) {
-        WallpaperManager wallpaperManager = WallpaperManager.getInstance(context);
-        try {
-            wallpaperManager.setBitmap(bmp, null, true, WallpaperManager.FLAG_LOCK);
-        } catch (IOException e) {
-            callbackContext.error(e.getMessage());
-            e.printStackTrace();
+    private class setLockScreenImageRunnable implements Runnable {
+
+        private Bitmap bmp;
+        private CallbackContext callbackContext;
+
+        private setLockScreenImageRunnable(Bitmap bmp, CallbackContext callbackContext) {
+            this.bmp = bmp;
+            this.callbackContext = callbackContext;
         }
 
-        callbackContext.success();
+        @Override
+        public void run() {
+            WallpaperManager wallpaperManager = WallpaperManager.getInstance(context);
+            try {
+                wallpaperManager.setBitmap(bmp, null, true, WallpaperManager.FLAG_LOCK);
+            } catch (IOException e) {
+                callbackContext.error(e.getMessage());
+                e.printStackTrace();
+            }
+
+            callbackContext.success();
+        }
+    }
+
+    private class setLockScreenAndWallpaperImageRunnable implements Runnable {
+
+        private Bitmap bmp;
+        private CallbackContext callbackContext;
+
+        private setLockScreenAndWallpaperImageRunnable(Bitmap bmp, CallbackContext callbackContext) {
+            this.bmp = bmp;
+            this.callbackContext = callbackContext;
+        }
+
+        @Override
+        public void run() {
+            WallpaperManager wallpaperManager = WallpaperManager.getInstance(context);
+            try {
+                wallpaperManager.setBitmap(bmp);
+                wallpaperManager.setBitmap(bmp, null, true, WallpaperManager.FLAG_LOCK);
+            } catch (IOException e) {
+                callbackContext.error(e.getMessage());
+                e.printStackTrace();
+            }
+
+            callbackContext.success();
+        }
     }
 
 }
