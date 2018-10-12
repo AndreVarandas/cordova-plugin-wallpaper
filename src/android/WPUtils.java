@@ -145,6 +145,9 @@ public class WPUtils extends CordovaPlugin {
         }
     }
 
+    /**
+     * Sets a bitmap as both home and lock screen wallpaper.
+     */
     private class setLockScreenAndWallpaperImageRunnable implements Runnable {
 
         private Bitmap bmp;
